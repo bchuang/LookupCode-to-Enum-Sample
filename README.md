@@ -1,2 +1,2 @@
 # LookupCode-to-Enum-Sample
-Transfer LookupCode to Enum
+Transfer LookupCode to Enum with C#
