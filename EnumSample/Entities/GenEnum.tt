@@ -1,0 +1,65 @@
+﻿<#@ template language="C#" debug="True" hostspecific="True" #>
+<#@ output extension=".cs" #>
+<#@ assembly name="System.Data" #>
+<#@ assembly name="System.xml" #>
+<#@ assembly name="System.Configuration" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Configuration" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+using System;
+
+namespace EnumSample.Entities 
+{        
+		<#
+
+		//System.Diagnostics.Debugger.Launch(); //Debug Trace
+
+		ExeConfigurationFileMap map = new ExeConfigurationFileMap { ExeConfigFilename = this.Host.ResolvePath(@"..\App.config") };
+		Configuration config = ConfigurationManager.OpenMappedExeConfiguration(map, ConfigurationUserLevel.None);
+		string connectionString = config.ConnectionStrings.ConnectionStrings[1].ConnectionString;
+		connectionString = connectionString.Replace("|DataDirectory|",this.Host.ResolvePath(""));
+		
+			SqlConnection conn = new SqlConnection(connectionString); 
+			conn.Open(); 
+		
+			var selectQuery = "select * from LookUpCode";
+			SqlCommand command = new SqlCommand(selectQuery,conn); 
+			SqlDataAdapter ad = new SqlDataAdapter(command); 
+			var dt = new DataTable();
+        
+			ad.Fill(dt);
+		
+			DataTable distinctTypeId = new DataView(dt).ToTable(true, "EnumClassName","EnumType");
+		
+			foreach (System.Data.DataRow row in distinctTypeId.Rows)
+			{ 				
+					var expression = String.Format("EnumClassName = '{0}'", row["EnumClassName"].ToString());
+					var sortOrder = String.Format("EnumValue ASC");
+					
+					#>             
+					public enum <#= row["EnumClassName"] #> : <#= row["EnumType"] #>
+					{
+						<#
+							foreach (System.Data.DataRow data in dt.Select(expression, sortOrder))
+							{
+								string pattern = @"[\W_]+";
+								Regex rg = new Regex(pattern);
+								var enumName = rg.Replace(data["EnumName"].ToString(), "");
+								var enumValue = Convert.ToInt32( data["EnumValue"].ToString());
+								#>
+								<#= enumName #> = <#= enumValue #>,	
+						<#
+						}
+						#>
+					}
+						
+					<#
+			}
+
+			conn.Close();
+		
+		  #>
+}
