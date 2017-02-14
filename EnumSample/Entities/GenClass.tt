@@ -1,0 +1,68 @@
+﻿<#@ template language="C#" debug="True" hostspecific="True" #>
+<#@ output extension=".cs" #>
+<#@ assembly name="System.Data" #>
+<#@ assembly name="System.xml" #>
+<#@ assembly name="System.Configuration" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Configuration" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+
+using System;
+
+namespace EnumSample.Entities 
+{        
+		<#
+			ExeConfigurationFileMap map = new ExeConfigurationFileMap { ExeConfigFilename = this.Host.ResolvePath(@"..\App.config") };
+			Configuration config = ConfigurationManager.OpenMappedExeConfiguration(map, ConfigurationUserLevel.None);
+			string connectionString = config.ConnectionStrings.ConnectionStrings[1].ConnectionString;
+			connectionString = connectionString.Replace("|DataDirectory|",this.Host.ResolvePath(""));
+			SqlConnection conn = new SqlConnection(connectionString); 
+			conn.Open(); 
+		
+			DataTable schema = conn.GetSchema("Tables");
+			string selectQuery = "select * from  @tableName "; 
+
+			SqlCommand command = new SqlCommand(selectQuery,conn); 
+			SqlDataAdapter ad = new SqlDataAdapter(command); 
+			System.Data.DataSet ds = new DataSet(); 
+			int tableIndex = 0;
+
+			var selectEnumQuery = "select Distinct TableName, ColumnName, EnumClassName from LookupCode";
+			SqlCommand enumCommand = new SqlCommand(selectEnumQuery,conn); 
+			SqlDataAdapter enumAD = new SqlDataAdapter(enumCommand); 
+			var dt = new DataTable();
+        
+			enumAD.Fill(dt);
+
+			foreach(System.Data.DataRow row in schema.Rows) 
+			{ 				
+			#>             
+			//mapping table name: <#= row["TABLE_NAME"].ToString().Trim('s') #>
+			
+			public class <#= row["TABLE_NAME"].ToString().Trim('s') #>                            
+			{
+				<#                 
+					command.CommandText = selectQuery.Replace("@tableName",row["TABLE_NAME"].ToString()); 
+					ad.FillSchema(ds, SchemaType.Mapped, row["TABLE_NAME"].ToString());
+
+					foreach (DataColumn dc in ds.Tables[tableIndex].Columns)
+					{
+						var dataTypeName = dc.DataType.Name;
+
+						var dv = new DataView(dt);
+						dv.RowFilter = String.Format("TableName='{0}' AND ColumnName='{1}'",row["TABLE_NAME"].ToString(),dc.ColumnName);
+						if(dv.Count>0)
+						{
+							dataTypeName = dv[0].Row["EnumClassName"].ToString();
+						}
+
+
+						#>
+						public <#= dataTypeName #> <#= dc.ColumnName #>  { get; set; }                                        
+				<#    }                 #>                                }                            
+			<#    
+			tableIndex++;}  #>
+}
